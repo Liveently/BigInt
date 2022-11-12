@@ -1,5 +1,6 @@
 #include <string>
 #include <vector>
+#include <functional>
 
 class BigInt {
 
@@ -7,27 +8,29 @@ class BigInt {
     std::vector<int> digits;
     bool positive;
 
+    void delete0 ();
 
-
-    friend void module_addition (const std::vector<int>& a, const std::vector<int>& b, std::vector<int> res);
-    friend void module_subtraction (const std::vector<int>& a, const std::vector<int>& b, std::vector<int> res);
+    friend void module_addition (const std::vector<int>& a, const std::vector<int>& b, std::vector<int> &res);
+    friend void module_subtraction (const std::vector<int>& a, const std::vector<int>& b, std::vector<int> &res);
     friend bool module_compare(const std::vector<int>& a, const std::vector<int>& b);
 
 
 public:
     BigInt();
     BigInt(int val);
-    explicit BigInt(std::string val); // бросать исключение std::invalid_argument при ошибке
+    explicit BigInt(std::string val);
     BigInt(const BigInt & val);
     ~BigInt();
 
-    BigInt &operator=(const BigInt & val);  //возможно присваивание самому себе!
+    BigInt &operator=(const BigInt & val); 
 
     BigInt operator~() const;
     BigInt &operator++();
     const BigInt operator++(int);
     BigInt &operator--();
     const BigInt operator--(int);
+
+
 
     BigInt &operator+=(const BigInt &val);
     BigInt &operator*=(const BigInt &val);
@@ -71,4 +74,3 @@ public:
     friend BigInt operator%(const BigInt &, const BigInt &);
 
 };
-
