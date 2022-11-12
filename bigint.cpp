@@ -1,5 +1,6 @@
 #include "bigint.h"
 #include <vector>
+#include <algorithm>
 
 BigInt::BigInt() {
 
@@ -10,14 +11,19 @@ BigInt::BigInt() {
 BigInt::BigInt(int val) {
 
     if (val < 0) {
+        val=-val;
         positive = false;
-        val *= -1;
+
     } else {
         positive = true;
     }
 
+
+    if (val==0) digits.push_back(0);
+
     while (val) {
-        digits.push_back((int) (val % base));
+
+        digits.push_back((int) (  val % base));
         val /= base;
     }
 
@@ -25,27 +31,43 @@ BigInt::BigInt(int val) {
 
 BigInt::BigInt(std::string val) {
 
-    unsigned long long size = val.length();
-
     positive = (val[0] != '-');
 
-    while ((size > 0) && (!positive && (size > 1))) {
 
-        int length = 0;
+    int len_base = 0;
+    int current = BigInt::base;
+
+    while (current >= 10) {
+        current /= 10;
+        len_base++;
+    }
+
+
+    int l = val.size();
+    if (!positive) l--;
+
+    l /= len_base;
+
+    current=val.size()-1;
+
+    for (int i = 0; i < l + 1; i++) {
+
         int num = 0;
         int level = 1;
-
-        for (unsigned long long i=(size-1); i>=size-9; i--) {
-            if (val[i] < '0' || val[i] > '9') break;
-            num += (val[i] - '0') * level;
+        for (int j = 0; j < len_base; j++) {
+            num += (val[current] - '0') * level;
             level *= 10;
-            ++length;
+            current--;
+            if ((current == -1) || (val[current] == '-')) break;
         }
 
         digits.push_back(num);
-        size -= length;
+
     }
+
+    this->delete0();
 }
+
 
 BigInt::BigInt(const BigInt &val) {
     digits = val.digits;
@@ -57,7 +79,9 @@ BigInt::~BigInt() {
     positive = true;
 }
 
-void module_addition(const std::vector<int>& a, const std::vector<int>& b, std::vector<int> res) {
+
+
+void module_addition(const std::vector<int>& a, const std::vector<int>& b, std::vector<int> &res) {
 
     auto it1 = a.begin();
     auto it2 = b.begin();
@@ -83,7 +107,7 @@ void module_addition(const std::vector<int>& a, const std::vector<int>& b, std::
     if (sum) res.push_back(1);
 }
 
-void module_subtraction(const std::vector<int>& a, const std::vector<int>& b, std::vector<int> res) {
+void module_subtraction(const std::vector<int>& a, const std::vector<int>& b, std::vector<int> &res) {
 
     auto it1 = a.begin();
     auto it2 = b.begin();
@@ -116,8 +140,17 @@ bool module_compare(const std::vector<int>& a, const std::vector<int>& b){
 
     if (a.size() != b.size()){
         return (a.size() >= b.size());
+
     } else{
-        return (a.back() >= b.back());
+
+        for(int i = a.size()-1; i>=0; i--){
+
+            if (a[i]<b[i]) return false;
+            if (a[i]>b[i]) return true;
+        }
+
+        return true;
+
     }
 } //a>=b
 
@@ -128,12 +161,6 @@ BigInt &BigInt::operator=(const BigInt &val) {
     positive=val.positive;
     digits=val.digits;
 
-   /* digits.clear();
-
-    for(int digit : val.digits){
-        digits.push_back(digit);
-    }
-*/
     return *this;
 }
 
@@ -152,13 +179,17 @@ BigInt &BigInt::operator+=(const BigInt &val) {
         }
     }
 
-    digits.clear();
 
-    for(int & re : res){
-        digits.push_back(re);
-    }
+       this->digits.erase(digits.begin(), digits.end());
+
+       for(int & re : res){
+           this->digits.push_back(re);
+       }
+
+    this->delete0();
 
     return *this;
+
 }
 
 BigInt &BigInt::operator-=(const BigInt &val) {
@@ -176,11 +207,13 @@ BigInt &BigInt::operator-=(const BigInt &val) {
         }
     }
 
-    digits.clear();
+    this->digits.erase(digits.begin(), digits.end());
 
     for(int & re : res){
-        digits.push_back(re);
+        this->digits.push_back(re);
     }
+
+    this->delete0();
 
     return *this;
 }
@@ -196,6 +229,7 @@ BigInt &BigInt::operator++() {
             *it1 = sum % base;
             sum /= base;
             if (sum == 0) break;
+            it1++;
         }
 
         if (sum) digits.push_back(1);
@@ -245,12 +279,15 @@ BigInt &BigInt::operator--() {
             *it1 = sum % base;
             sum /= base;
             if (sum == 0) break;
+            it1++;
         }
 
         if (sum) digits.push_back(1);
 
         return *this;
     } else {
+
+
         if (digits.size()==1 && digits.back()==0) this->positive=false;
 
         auto it1 = digits.begin();
@@ -258,19 +295,24 @@ BigInt &BigInt::operator--() {
         int dif = -1;
 
         while (it1 != digits.end()) {
+
+
             dif += *it1;
             ++it1;
+
 
             if (dif < 0) {
                 *it1 = dif + BigInt::base;
                 dif = -1;
             } else {
-                *it1 = dif;
-                break;
+
+                *(it1-1) = dif;
+                return *this;
             }
         }
 
         if (dif!=0) digits[0]=1;
+
         return *this;
     }
 }
@@ -286,13 +328,21 @@ const BigInt BigInt::operator--(int) {
 
 bool BigInt::operator==(const BigInt &val) const {
 
-    if ((this->positive) != (val.positive)) return false;
+
+    if ((positive) != (val.positive)) return false;
 
     if (this->digits.size() != val.digits.size()){
         return false;
     } else{
-        return (this->digits.back() == val.digits.back());
+        for(int i=0; i< digits.size(); i++){
+
+            if (digits[i] != val.digits[i]) return false;
+
+        }
+
+        return true;
     }
+
 }
 
 bool BigInt::operator!=(const BigInt &val) const {
@@ -314,9 +364,11 @@ BigInt BigInt::operator-() const {
     return res;
 }
 
-bool BigInt::operator>(const BigInt &val) const {
+bool BigInt::operator>(const BigInt &val) const { //всегда true
 
-    if (this==&val) return false;
+    if ( *this == val) {
+        return false;
+    }
 
     if (this->positive != val.positive) return this->positive;
 
@@ -329,63 +381,75 @@ bool BigInt::operator>(const BigInt &val) const {
 }
 
 bool BigInt::operator<(const BigInt &val) const {
-    return (this > &val);
+    return !(*this > val ) && *this!=val;
 }
 
 bool BigInt::operator<=(const BigInt &val) const {
-    return !(this > &val);
+    return ((*this > val) || (*this == val));
 }
 
 bool BigInt::operator>=(const BigInt &val) const {
-    return ((this > &val) || (this==&val));
+    return ((*this > val) || (*this == val));
 }
 
 BigInt BigInt::operator~() const {
 
-    BigInt res;
-    res.positive= this->positive;
+    BigInt res(*this);
+    res += 1;
 
-    auto it= this->digits.rbegin();
-
-   // res.digits.push_back(~*it);
-
-    while(it!=digits.rend()){
-  //      int d = *it + base;
-
-     //   res.digits.push_back(~d);
-        res.digits.push_back(~*it);
-
-        it++;
-    }
-
+    res.positive= !res.positive;
 
     return res;
+
 }
 
 BigInt operator*(const BigInt &a, const BigInt &b) {
 
-
-    std::vector<int>::const_iterator it1;
-    std::vector<int>::const_iterator it2;
+    BigInt c(0);
 
 
-    BigInt c;
+    std::vector<int> res(b.digits.size() + a.digits.size()) ;
 
-    if ((a.digits.size()==1 && a.digits.back()==0) || (b.digits.size()==1 && b.digits.back()==0)){
-        c.digits.push_back(0);
-        return c;
+    for(int & re : res){
+        re=0;
     }
 
-    c.positive=(a.positive==b.positive);
+    for (int i = 0; i < b.digits.size(); i++) {
 
-    for (it1 = b.digits.begin(); it1 != a.digits.end(); ++it1) {
-        for (it2 = b.digits.begin(); it2 != b.digits.end(); ++it2) {
-            c.digits[distance(a.digits.begin(),it1)+ distance(a.digits.begin(),it2)] += (*it1) * (*it2);
+        for (int j = 0; j < a.digits.size(); j++) {
+
+            int cur = i + j;
+
+            int sum = b.digits[i] * a.digits[j];
+            res[cur] += sum % BigInt::base;
+            cur++;
+
+            sum /= BigInt::base;
+
+
+            while (sum) {
+                sum += res[cur];
+                res[cur] = sum % BigInt::base;
+                sum /= BigInt::base;
+                cur++;
+            }
+
+
         }
+
     }
+
+    c.digits=res;
+
+    c.delete0();
+
+    c.positive= a.positive == b.positive;
+
 
     return c;
+
 }
+
 
 BigInt &BigInt::operator*=(const BigInt &val) {
     *this = *this * val;
@@ -468,7 +532,6 @@ BigInt::operator std::string() const {
 
     std::string o;
 
-    if (this->digits.size() == 1 && this->digits.back() == 0) return o = '0';
 
     if (!this->positive) o.push_back('-');
 
@@ -476,8 +539,7 @@ BigInt::operator std::string() const {
     auto it = this->digits.rbegin();
 
 
-    o+=std::to_string(abs(*it++));
-
+    o+=std::to_string(*it++);
 
 
     for (; it != this->digits.rend(); ++it) {
@@ -485,21 +547,22 @@ BigInt::operator std::string() const {
         int length = 0;
 
         int current=BigInt::base;
-        while (current) {
+
+        while (current-1) {  //сколько чисел вмещает ячейка
             current /= 10;
             length++;
         }
 
         current = *it;
 
-        while (current) {
+        while (current) {   //сколько нужно 0
             current /= 10;
             --length;
         }
 
-        for (int j = 0; j > length; ++j) o.push_back('0');
+        for (int j = 0; j < length; ++j) o.push_back('0');
 
-        o+=std::to_string((abs(*it)));
+        o+=std::to_string(*it);
     }
 
     return o;
@@ -508,22 +571,27 @@ BigInt::operator std::string() const {
 
 BigInt operator/(const BigInt &a, const BigInt &b) {
 
-    BigInt c;
+    BigInt c(0);
 
-    if((a.digits.size()==1 && a.digits.back()==0) || (a<b)){
-        c.digits.push_back(0);
+
+    if(((a.digits.size()==1 && a.digits.back()==0)) ||( (a<b))){
         return c;
     }
 
-    c.positive=(a.positive==b.positive);
-
 
     BigInt d(a);
+    d.positive = true;
 
-    while(module_compare(d.digits, b.digits)){
-        d-=b;
+    BigInt f(b);
+    f.positive = true;
+
+
+    while(d >= f){
+        d-=f;
         c++;
     }
+    
+    c.positive=(a.positive==b.positive);
 
     return c;
 }
@@ -533,81 +601,21 @@ BigInt &BigInt::operator/=(const BigInt &val) {
     return *this;
 }
 
-BigInt operator^(const BigInt &a, const BigInt &b) {
-
-    BigInt c(1);
-
-    if(!a.positive && (b.digits[0] % 2 == 1)) c.positive = false;
-
-    BigInt d = b;
-
-    while(d.digits.size()==1 && d.digits.back()==0){
-        c=a*c;
-        d--;
-    }
-
-    return c;
-}
-
-BigInt &BigInt::operator^=(const BigInt &val) {
-    *this = *this ^ val;
-    return *this;
-}
-
-BigInt operator&(const BigInt &a, const BigInt &b) {
-
-    BigInt res;
-    res.positive= a.positive == b.positive;
-
-    auto it1= a.digits.rbegin();
-    auto it2= b.digits.rbegin();
-
-    while(it1!=a.digits.rend() && it2!=a.digits.rend()){
-
-        res.digits.push_back(*it1 & *it2);
-
-        it1++;
-        it2++;
-    }
-
-    return res;
-}
-
-BigInt &BigInt::operator&=(const BigInt &val) {
-    *this = *this & val;
-    return *this;
-}
-
-BigInt operator|(const BigInt &a, const BigInt &b) {
-    BigInt res;
-    res.positive= a.positive == b.positive;
-
-    auto it1= a.digits.rbegin();
-    auto it2= b.digits.rbegin();
-
-    while(it1!=a.digits.rend() || it2!=a.digits.rend()){
-
-        res.digits.push_back(*it1 || *it2);
-
-        it1++;
-        it2++;
-    }
-
-    return res;
-}
-
-BigInt &BigInt::operator|=(const BigInt &val) {
-    *this = *this | val;
-    return *this;
-}
 
 BigInt operator%(const BigInt &a, const BigInt &b) {
 
-    BigInt res(a);
+    BigInt d(a);
+    d.positive = true;
 
-    res/=100;
-    res*=b;
-    return res;
+    BigInt f(b);
+    f.positive = true;
+
+
+    while(d >= f){
+        d-=f;
+    }
+
+    return d;
 }
 
 BigInt &BigInt::operator%=(const BigInt &val) {
@@ -615,7 +623,78 @@ BigInt &BigInt::operator%=(const BigInt &val) {
     return *this;
 }
 
+void BigInt::delete0() {
+
+    auto it=this->digits.rbegin();
+
+    
+    while (it!=this->digits.rend() - 1 ){
+        if (*it==0) digits.pop_back();
+        it++;
+    }
+
+    if (digits.size()==1 && digits.back()==0) this->positive=true;
+
+}
 
 
+
+BigInt &BigInt::operator^=(const BigInt &value) {
+
+    for(int i = 0; i < std::min(value.digits.size(), digits.size()); ++i){
+        digits[i] = digits[i] ^ value.digits[i];
+    }
+
+    positive = value.positive == positive;
+    delete0();
+
+    return *this;
+}
+
+
+BigInt &BigInt::operator&=(const BigInt &vec) {
+
+    for (int i = 0; i < std::min(digits.size(), vec.digits.size()); ++i) {
+        digits[i] = digits[i] & vec.digits[i];
+    }
+
+    positive = vec.positive | positive;
+
+    delete0();
+
+    return *this;
+}
+
+
+BigInt &BigInt::operator|=(const BigInt &vec) {
+
+    for (int i = 0; i < std::min(digits.size(), vec.digits.size()); ++i) {
+        digits[i] = digits[i] | vec.digits[i];
+    }
+
+    positive = vec.positive & positive;
+
+    delete0();
+
+    return *this;
+}
+
+BigInt operator^(const BigInt &vec1, const BigInt &vec2) {
+    BigInt tmp = vec1;
+    tmp ^= vec2;
+    return tmp;
+}
+
+BigInt operator&(const BigInt &vec1, const BigInt &vec2) {
+    BigInt tmp = vec1;
+    tmp &= vec2;
+    return tmp;
+}
+
+BigInt operator|(const BigInt &vec1, const BigInt &vec2) {
+    BigInt tmp = vec1;
+    tmp |= vec2;
+    return tmp;
+}
 
 
